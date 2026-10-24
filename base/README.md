@@ -5,6 +5,13 @@ This directory is a focused subset of Istio's
 It is kept as the upstream-oriented baseline for this repository. The upstream
 license is retained in [LICENSE](LICENSE).
 
+## Kubernetes architecture
+
+![Bookinfo Kubernetes architecture](samples/bookinfo/bookinfo-k8s-architecture.png)
+
+The editable PlantUML source is available at
+[`samples/bookinfo/bookinfo-k8s-architecture.puml`](samples/bookinfo/bookinfo-k8s-architecture.puml).
+
 ## Included material
 
 - `samples/bookinfo/src/` — source code and build configuration for the
