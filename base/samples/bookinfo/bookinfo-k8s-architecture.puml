@@ -1,5 +1,5 @@
 @startuml
-title Bookinfo Kubernetes Architecture
+title Full Bookinfo Kubernetes / Istio Resource Architecture
 
 left to right direction
 skinparam shadowing false
@@ -16,83 +16,80 @@ skinparam nodeBorderColor #16A34A
 skinparam nodeBackgroundColor #F0FDF4
 
 actor "User" as user
-
 cloud "External traffic" as external
 
 package "Kubernetes cluster" {
-  package "Entry point (choose one)" #FEF3C7 {
-    component "Kubernetes Ingress\n(optional)" as ingress
-    component "Istio ingress gateway\nGateway + VirtualService\n(optional)" as istio_ingress
-    component "Gateway API\nGateway + HTTPRoute\n(optional)" as gateway_api
-  }
+  component "External entry — choose one\n• Kubernetes Ingress (NGINX)\n• Istio Gateway + edge VirtualService\n• Gateway API Gateway + HTTPRoute\n• productpage NodePort" as entry #FEF3C7
 
-  package "Bookinfo namespace" {
+  package "Bookinfo application namespace" {
     component "Service\nproductpage :9080" as productpage_svc
-    node "Deployment: productpage-v1\nPod: productpage\n+ Envoy sidecar" as productpage_pod
+    node "Deployment\nproductpage-v1\nPod + Envoy sidecar" as productpage
 
     component "Service\ndetails :9080" as details_svc
-    node "Deployment: details-v1\nPod: details\n+ Envoy sidecar" as details_pod
+    node "details-v1\ndefault" as details_v1
+    node "details-v2\noptional variant" as details_v2
 
     component "Service\nreviews :9080" as reviews_svc
-    node "reviews-v1\nPod + Envoy" as reviews_v1
-    node "reviews-v2\nPod + Envoy" as reviews_v2
-    node "reviews-v3\nPod + Envoy" as reviews_v3
+    node "reviews-v1" as reviews_v1
+    node "reviews-v2" as reviews_v2
+    node "reviews-v3" as reviews_v3
 
     component "Service\nratings :9080" as ratings_svc
-    node "ratings-v1\nPod + Envoy" as ratings_v1
-    node "ratings-v2\nPod + Envoy" as ratings_v2
+    node "ratings-v1\nin-memory" as ratings_v1
+    node "ratings-v2\nMongoDB-backed" as ratings_v2
+    node "ratings-v2-mysql\nMySQL or VM-backed" as ratings_mysql
 
-    database "Service: mongodb :27017\n(optional)" as mongodb
-    database "Service: mysqldb :3306\n(optional)" as mysql
+    database "mongodb\nService :27017\nmongodb-v1" as mongodb
+    database "mysqldb\nService :3306\nSecret + mysqldb-v1" as mysql
   }
 
-  package "Istio traffic management (optional)" #F3E8FF {
-    component "VirtualService\nroute and traffic split" as virtual_service
-    component "DestinationRule\nsubsets by version label\n+ mTLS policy" as destination_rule
+  package "Restored optional resource sets — apply only the scenario required" #F3E8FF {
+    component "Istio routing\nDestinationRules: all, mTLS, reviews\nVirtualServices: all-v1, details-v2,\nreviews v1/v3/v2-v3 and weighted splits\nratings DB / MySQL / delay / abort" as routing
+    component "Gateway and edge resources\nnetworking/bookinfo-gateway.yaml\ncertmanager-gateway.yaml\ngateway-api: bookinfo gateway,\nall-v1 and reviews route variants" as gateways
+    component "Workload profiles and versions\nbookinfo.yaml • dualstack • PSA\nper-service / discovery overlays\nbookinfo-versions.yaml" as workloads
+    component "Supporting capabilities\nMongoDB and MySQL manifests\ncertificate + cert-manager gateway\nGoogle APIs egress, details fault injection\nEnvoy rate limit, Swagger, Istio demo profile" as supporting
   }
 }
 
 user --> external
-external --> ingress : alternative entry
-external --> istio_ingress : alternative entry
-external --> gateway_api : alternative entry
-ingress --> productpage_svc
-istio_ingress --> productpage_svc
-gateway_api --> productpage_svc
+external --> entry
+entry --> productpage_svc : HTTP :9080
+productpage_svc --> productpage : app=productpage\nversion=v1
+productpage --> details_svc : HTTP :9080
+productpage --> reviews_svc : HTTP :9080
 
-productpage_svc --> productpage_pod : app=productpage\nversion=v1
-productpage_pod --> details_svc
-productpage_pod --> reviews_svc
-details_svc --> details_pod : app=details\nversion=v1
-
-reviews_svc --> reviews_v1 : app=reviews\nversion=v1
-reviews_svc --> reviews_v2 : app=reviews\nversion=v2
-reviews_svc --> reviews_v3 : app=reviews\nversion=v3
+details_svc --> details_v1 : default
+details_svc ..> details_v2 : selected route
+reviews_svc --> reviews_v1 : v1
+reviews_svc --> reviews_v2 : v2
+reviews_svc --> reviews_v3 : v3
 reviews_v1 --> ratings_svc
 reviews_v2 --> ratings_svc
 reviews_v3 --> ratings_svc
+ratings_svc --> ratings_v1 : default
+ratings_svc ..> ratings_v2 : MongoDB scenario
+ratings_svc ..> ratings_mysql : MySQL scenario
+ratings_v2 --> mongodb
+ratings_mysql --> mysql
 
-ratings_svc --> ratings_v1 : app=ratings\nversion=v1
-ratings_svc --> ratings_v2 : app=ratings\nversion=v2
-ratings_v1 ..> mongodb : optional database
-ratings_v2 ..> mysql : optional database
+routing ..> reviews_svc : version / traffic selection
+routing ..> ratings_svc : database and fault scenarios
+gateways ..> entry : entry implementation
+workloads ..> productpage_svc : selected workload profile
+supporting ..> mongodb : database option
+supporting ..> productpage : egress / rate-limit option
 
-virtual_service ..> productpage_svc : controls ingress route
-virtual_service ..> reviews_svc : chooses v1 / v2 / v3
-virtual_service ..> ratings_svc : chooses version
-destination_rule ..> reviews_svc : defines subsets
-destination_rule ..> ratings_svc : defines subsets
-destination_rule ..> details_svc : defines subsets
-
-note bottom of virtual_service
-Without Istio routing rules, a Kubernetes Service
-load-balances across Pods with matching app labels.
+note bottom of routing
+The default Bookinfo workload is `platform/kube/bookinfo.yaml`.
+The restored files are alternatives, overlays, or test scenarios; they are not
+intended to be applied together.
 end note
 
 legend right
-  |= Resource | Role |
-  | Service | Stable internal DNS / load-balancing endpoint |
-  | Deployment / Pod | Runs a versioned application workload |
-  | VirtualService + DestinationRule | Optional Istio routing, subsets, mTLS |
+  |= Style | Meaning |
+  | Solid arrow | Default request or dependency path |
+  | Dotted arrow | Optional configuration or scenario |
+  | Green node | Versioned application workload |
+  | Purple package | Restored Istio / platform resource collection |
 endlegend
 @enduml
