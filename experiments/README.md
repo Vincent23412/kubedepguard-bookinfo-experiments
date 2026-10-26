@@ -6,16 +6,21 @@ Use it for project-specific Kubernetes experiments and additional resources.
 
 ## Current differences from `base/`
 
-- `samples/bookinfo/platform/kube/bookinfo-ingress.yaml` uses
-  `ingressClassName: nginx`, so it works with a standard NGINX Ingress
-  controller instead of the upstream Istio Ingress example.
+- Bookinfo has one external entry point: the `bookinfo` Kubernetes Ingress in
+  `samples/bookinfo/platform/kube/bookinfo-ingress.yaml`. It targets an NGINX
+  Ingress controller (`ingressClassName: nginx`) and routes only to the
+  internal `productpage` Service.
+- The architecture does not include Istio Gateway, Gateway API,
+  VirtualService, DestinationRule, sidecars, or NodePort/LoadBalancer
+  application Services.
+- `ratings-v2` reads ratings from the internal `mongodb` Service. The MongoDB
+  data volume is intentionally ephemeral for this demo.
 
 ## Suggested workflow
 
 Keep upstream-oriented files in `base/`. Add or change manifests in this
-directory for experiments such as PersistentVolumeClaims, databases, traffic
-policies, observability, or deployment variants.
+directory for project-specific Kubernetes experiments.
 
-The Bookinfo architecture diagram is retained at
+The Ingress-only Bookinfo architecture diagram is at
 `samples/bookinfo/bookinfo-k8s-architecture.puml` and the compiled PNG sits
 beside it.

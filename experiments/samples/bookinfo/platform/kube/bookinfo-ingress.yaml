@@ -12,13 +12,12 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-###########################################################################
-# Ingress resource (gateway)
-##########################################################################
+# Expose Bookinfo only through the NGINX Ingress controller. The application
+# Services remain internal (ClusterIP) and must not be exposed separately.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: gateway
+  name: bookinfo
 spec:
   ingressClassName: nginx
   rules:

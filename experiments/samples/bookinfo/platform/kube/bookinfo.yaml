@@ -93,6 +93,7 @@ spec:
     name: http
   selector:
     app: ratings
+    version: v2
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -104,29 +105,84 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ratings-v1
+  name: ratings-v2
   labels:
     app: ratings
-    version: v1
+    version: v2
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: ratings
-      version: v1
+      version: v2
   template:
     metadata:
       labels:
         app: ratings
-        version: v1
+        version: v2
     spec:
       serviceAccountName: bookinfo-ratings
       containers:
       - name: ratings
-        image: registry.istio.io/release/examples-bookinfo-ratings-v1:1.20.3
+        image: registry.istio.io/release/examples-bookinfo-ratings-v2:1.20.3
         imagePullPolicy: IfNotPresent
+        env:
+        - name: MONGO_DB_URL
+          value: mongodb://mongodb:27017/test
         ports:
         - containerPort: 9080
+---
+##################################################################################################
+# MongoDB for database-backed ratings-v2
+##################################################################################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  labels:
+    app: mongodb
+    service: mongodb
+spec:
+  ports:
+  - port: 27017
+    name: mongo
+  selector:
+    app: mongodb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-v1
+  labels:
+    app: mongodb
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: mongodb
+        version: v1
+    spec:
+      containers:
+      - name: mongodb
+        image: registry.istio.io/release/examples-bookinfo-mongodb:1.20.3
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 27017
+        args:
+        - --ipv6
+        - --bind_ip_all
+        volumeMounts:
+        - name: data-db
+          mountPath: /data/db
+      volumes:
+      - name: data-db
+        emptyDir: {}
 ---
 ##################################################################################################
 # Reviews service
@@ -144,6 +200,7 @@ spec:
     name: http
   selector:
     app: reviews
+    version: v3
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -151,86 +208,6 @@ metadata:
   name: bookinfo-reviews
   labels:
     account: reviews
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: reviews-v1
-  labels:
-    app: reviews
-    version: v1
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: reviews
-      version: v1
-  template:
-    metadata:
-      labels:
-        app: reviews
-        version: v1
-    spec:
-      serviceAccountName: bookinfo-reviews
-      containers:
-      - name: reviews
-        image: registry.istio.io/release/examples-bookinfo-reviews-v1:1.20.3
-        imagePullPolicy: IfNotPresent
-        env:
-        - name: LOG_DIR
-          value: "/tmp/logs"
-        ports:
-        - containerPort: 9080
-        volumeMounts:
-        - name: tmp
-          mountPath: /tmp
-        - name: wlp-output
-          mountPath: /opt/ibm/wlp/output
-      volumes:
-      - name: wlp-output
-        emptyDir: {}
-      - name: tmp
-        emptyDir: {}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: reviews-v2
-  labels:
-    app: reviews
-    version: v2
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: reviews
-      version: v2
-  template:
-    metadata:
-      labels:
-        app: reviews
-        version: v2
-    spec:
-      serviceAccountName: bookinfo-reviews
-      containers:
-      - name: reviews
-        image: registry.istio.io/release/examples-bookinfo-reviews-v2:1.20.3
-        imagePullPolicy: IfNotPresent
-        env:
-        - name: LOG_DIR
-          value: "/tmp/logs"
-        ports:
-        - containerPort: 9080
-        volumeMounts:
-        - name: tmp
-          mountPath: /tmp
-        - name: wlp-output
-          mountPath: /opt/ibm/wlp/output
-      volumes:
-      - name: wlp-output
-        emptyDir: {}
-      - name: tmp
-        emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment

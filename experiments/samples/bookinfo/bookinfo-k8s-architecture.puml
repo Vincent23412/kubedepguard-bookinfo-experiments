@@ -17,82 +17,55 @@ skinparam nodeBackgroundColor #F0FDF4
 
 actor "User" as user
 
-cloud "External traffic" as external
+cloud "Internet" as internet
 
 package "Kubernetes cluster" {
-  package "Entry point (choose one)" #FEF3C7 {
-    component "Kubernetes Ingress\n(optional)" as ingress
-    component "Istio ingress gateway\nGateway + VirtualService\n(optional)" as istio_ingress
-    component "Gateway API\nGateway + HTTPRoute\n(optional)" as gateway_api
-  }
+  component "NGINX Ingress Controller" as ingress_controller #FEF3C7
+  component "Ingress: bookinfo\n/productpage, /static/, /login,\n/logout, /api/v1/products" as ingress
 
-  package "Bookinfo namespace" {
+  package "Application namespace" {
     component "Service\nproductpage :9080" as productpage_svc
-    node "Deployment: productpage-v1\nPod: productpage\n+ Envoy sidecar" as productpage_pod
+    node "Deployment: productpage-v1\nPod: productpage" as productpage_pod
 
     component "Service\ndetails :9080" as details_svc
-    node "Deployment: details-v1\nPod: details\n+ Envoy sidecar" as details_pod
+    node "Deployment: details-v1\nPod: details" as details_pod
 
     component "Service\nreviews :9080" as reviews_svc
-    node "reviews-v1\nPod + Envoy" as reviews_v1
-    node "reviews-v2\nPod + Envoy" as reviews_v2
-    node "reviews-v3\nPod + Envoy" as reviews_v3
+    node "Deployment: reviews-v3\nPod: reviews" as reviews_v3
 
     component "Service\nratings :9080" as ratings_svc
-    node "ratings-v1\nPod + Envoy" as ratings_v1
-    node "ratings-v2\nPod + Envoy" as ratings_v2
+    node "Deployment: ratings-v2\nPod: ratings\nMONGO_DB_URL configured" as ratings_v2
 
-    database "Service: mongodb :27017\n(optional)" as mongodb
-    database "Service: mysqldb :3306\n(optional)" as mysql
-  }
-
-  package "Istio traffic management (optional)" #F3E8FF {
-    component "VirtualService\nroute and traffic split" as virtual_service
-    component "DestinationRule\nsubsets by version label\n+ mTLS policy" as destination_rule
+    database "Service: mongodb :27017\nDeployment: mongodb-v1" as mongodb
   }
 }
 
-user --> external
-external --> ingress : alternative entry
-external --> istio_ingress : alternative entry
-external --> gateway_api : alternative entry
-ingress --> productpage_svc
-istio_ingress --> productpage_svc
-gateway_api --> productpage_svc
+user --> internet
+internet --> ingress_controller : HTTP
+ingress_controller --> ingress
+ingress --> productpage_svc : HTTP :9080
 
 productpage_svc --> productpage_pod : app=productpage\nversion=v1
-productpage_pod --> details_svc
-productpage_pod --> reviews_svc
+productpage_pod --> details_svc : HTTP :9080
+productpage_pod --> reviews_svc : HTTP :9080
 details_svc --> details_pod : app=details\nversion=v1
 
-reviews_svc --> reviews_v1 : app=reviews\nversion=v1
-reviews_svc --> reviews_v2 : app=reviews\nversion=v2
 reviews_svc --> reviews_v3 : app=reviews\nversion=v3
-reviews_v1 --> ratings_svc
-reviews_v2 --> ratings_svc
-reviews_v3 --> ratings_svc
+reviews_v3 --> ratings_svc : HTTP :9080
 
-ratings_svc --> ratings_v1 : app=ratings\nversion=v1
 ratings_svc --> ratings_v2 : app=ratings\nversion=v2
-ratings_v1 ..> mongodb : optional database
-ratings_v2 ..> mysql : optional database
+ratings_v2 --> mongodb : MongoDB :27017
 
-virtual_service ..> productpage_svc : controls ingress route
-virtual_service ..> reviews_svc : chooses v1 / v2 / v3
-virtual_service ..> ratings_svc : chooses version
-destination_rule ..> reviews_svc : defines subsets
-destination_rule ..> ratings_svc : defines subsets
-destination_rule ..> details_svc : defines subsets
-
-note bottom of virtual_service
-Without Istio routing rules, a Kubernetes Service
-load-balances across Pods with matching app labels.
+note bottom of reviews_svc
+The reviews Service selects v3, which requests ratings.
+The ratings Service selects its database-backed v2 Pod.
 end note
 
 legend right
   |= Resource | Role |
-  | Service | Stable internal DNS / load-balancing endpoint |
+  | Ingress | The only external HTTP entry point |
+  | Service | Internal DNS / load-balancing endpoint |
   | Deployment / Pod | Runs a versioned application workload |
-  | VirtualService + DestinationRule | Optional Istio routing, subsets, mTLS |
+  | MongoDB | Internal ratings data store (ephemeral demo data) |
 endlegend
 @enduml
