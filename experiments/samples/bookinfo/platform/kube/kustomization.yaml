@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- bookinfo-configuration.yaml
+- bookinfo-storage.yaml
+- bookinfo.yaml
+- bookinfo-ingress.yaml
+- bookinfo-networkpolicy.yaml

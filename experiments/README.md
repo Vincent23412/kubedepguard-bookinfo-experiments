@@ -13,8 +13,8 @@ Use it for project-specific Kubernetes experiments and additional resources.
 - The architecture does not include Istio Gateway, Gateway API,
   VirtualService, DestinationRule, sidecars, or NodePort/LoadBalancer
   application Services.
-- `ratings-v2` reads ratings from the internal `mongodb` Service. The MongoDB
-  data volume is intentionally ephemeral for this demo.
+- `ratings-v2` reads ratings from the internal `mongodb` Service, which stores
+  data through the `mongodb-data` PersistentVolumeClaim.
 
 ## Suggested workflow
 
@@ -24,3 +24,11 @@ directory for project-specific Kubernetes experiments.
 The Ingress-only Bookinfo architecture diagram is at
 `samples/bookinfo/bookinfo-k8s-architecture.puml` and the compiled PNG sits
 beside it.
+
+The Bookinfo manifests themselves also include Deployment → ConfigMap,
+Deployment → Secret, Deployment → PVC, Ingress → Service, Service → Pod, and
+NetworkPolicy → Pod relationships. Those relationships drive Productpage's
+Details/Reviews calls, MongoDB storage, and Reviews access control; they can
+be intentionally broken and restored with the platform-kube experiment script.
+See its
+[architecture diagram](samples/bookinfo/bookinfo-k8s-architecture.png).

@@ -1,7 +1,7 @@
 @startuml
 title Bookinfo Kubernetes Architecture
 
-left to right direction
+top to bottom direction
 skinparam shadowing false
 skinparam roundcorner 12
 skinparam defaultFontName Arial
@@ -36,7 +36,18 @@ package "Kubernetes cluster" {
     component "Service\nratings :9080" as ratings_svc
     node "Deployment: ratings-v2\nPod: ratings\nMONGO_DB_URL configured" as ratings_v2
 
-    database "Service: mongodb :27017\nDeployment: mongodb-v1" as mongodb
+    component "Service\nmongodb :27017" as mongodb_svc
+    node "Deployment: mongodb-v1\nPod: mongodb" as mongodb_pod
+    database "PersistentVolumeClaim\nmongodb-data" as mongodb_pvc
+
+    component "ConfigMap\nbookinfo-service-config\nDETAILS_HOSTNAME=details" as runtime_config
+    component "Secret\nbookinfo-service-credentials\nREVIEWS_HOSTNAME=reviews" as service_secret
+    component "ConfigMap\nreviews-service-config\nRATINGS_SERVICE_PORT=9080" as reviews_config
+    component "Secret\nreviews-service-credentials\nRATINGS_HOSTNAME=ratings" as reviews_secret
+    component "Secret\nratings-db-credentials\nMONGO_DB_URL" as ratings_secret
+    database "PersistentVolumeClaim\nproductpage-workspace" as productpage_pvc
+    database "PersistentVolumeClaim\nreviews-logs" as reviews_pvc
+    component "NetworkPolicy\nreviews-from-productpage" as reviews_policy
   }
 }
 
@@ -54,11 +65,27 @@ reviews_svc --> reviews_v3 : app=reviews\nversion=v3
 reviews_v3 --> ratings_svc : HTTP :9080
 
 ratings_svc --> ratings_v2 : app=ratings\nversion=v2
-ratings_v2 --> mongodb : MongoDB :27017
+ratings_v2 --> mongodb_svc : MongoDB :27017
+mongodb_svc --> mongodb_pod : app=mongodb\nversion=v1
+mongodb_pod --> mongodb_pvc : persistentVolumeClaim\nclaimName=mongodb-data
+
+productpage_pod --> runtime_config : envFrom.configMapRef\nDETAILS_HOSTNAME
+productpage_pod --> service_secret : env.valueFrom.secretKeyRef\nREVIEWS_HOSTNAME
+productpage_pod --> productpage_pvc : persistentVolumeClaim\nclaimName=productpage-workspace
+reviews_v3 --> reviews_config : envFrom.configMapRef\nRATINGS_SERVICE_PORT
+reviews_v3 --> reviews_secret : env.valueFrom.secretKeyRef\nRATINGS_HOSTNAME
+reviews_v3 --> reviews_pvc : persistentVolumeClaim\nclaimName=reviews-logs
+ratings_v2 --> ratings_secret : env.valueFrom.secretKeyRef\nMONGO_DB_URL
+reviews_policy --> reviews_v3 : podSelector\napp=reviews, version=v3
 
 note bottom of reviews_svc
 The reviews Service selects v3, which requests ratings.
 The ratings Service selects its database-backed v2 Pod.
+end note
+
+note bottom of service_secret
+All dependency relationships are defined by Bookinfo resources
+in `platform/kube/`; no separate test namespace is used.
 end note
 
 legend right
@@ -66,6 +93,7 @@ legend right
   | Ingress | The only external HTTP entry point |
   | Service | Internal DNS / load-balancing endpoint |
   | Deployment / Pod | Runs a versioned application workload |
-  | MongoDB | Internal ratings data store (ephemeral demo data) |
+  | PVC | Persistent workspace, logs, and ratings data |
+  | ConfigMap / Secret / NetworkPolicy | Active Bookinfo deployment and access-control dependencies |
 endlegend
 @enduml

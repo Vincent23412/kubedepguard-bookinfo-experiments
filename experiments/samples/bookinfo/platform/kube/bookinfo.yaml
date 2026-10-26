@@ -13,19 +13,10 @@
 #   limitations under the License.
 
 ##################################################################################################
-# This file defines the services, service accounts, and deployments for the Bookinfo sample.
-#
-# To apply all 4 Bookinfo services, their corresponding service accounts, and deployments:
-#
-#   kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
-#
-# Alternatively, you can deploy any resource separately:
-#
-#   kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml -l service=reviews # reviews Service
-#   kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml -l account=reviews # reviews ServiceAccount
-#   kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml -l app=reviews,version=v3 # reviews-v3 Deployment
+# Core Bookinfo Services, ServiceAccounts, and Deployments. Apply the complete
+# experiment through kustomization.yaml; configuration, storage, Ingress, and
+# NetworkPolicy resources are intentionally maintained in separate files.
 ##################################################################################################
-
 ##################################################################################################
 # Details service
 ##################################################################################################
@@ -128,7 +119,10 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: MONGO_DB_URL
-          value: mongodb://mongodb:27017/test
+          valueFrom:
+            secretKeyRef:
+              name: ratings-db-credentials
+              key: MONGO_DB_URL
         ports:
         - containerPort: 9080
 ---
@@ -182,7 +176,8 @@ spec:
           mountPath: /data/db
       volumes:
       - name: data-db
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: mongodb-data
 ---
 ##################################################################################################
 # Reviews service
@@ -233,9 +228,17 @@ spec:
       - name: reviews
         image: registry.istio.io/release/examples-bookinfo-reviews-v3:1.20.3
         imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: reviews-service-config
         env:
         - name: LOG_DIR
           value: "/tmp/logs"
+        - name: RATINGS_HOSTNAME
+          valueFrom:
+            secretKeyRef:
+              name: reviews-service-credentials
+              key: RATINGS_HOSTNAME
         ports:
         - containerPort: 9080
         volumeMounts:
@@ -247,7 +250,8 @@ spec:
       - name: wlp-output
         emptyDir: {}
       - name: tmp
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: reviews-logs
 ---
 ##################################################################################################
 # Productpage services
@@ -301,6 +305,15 @@ spec:
       - name: productpage
         image: registry.istio.io/release/examples-bookinfo-productpage-v1:1.20.3
         imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: bookinfo-service-config
+        env:
+        - name: REVIEWS_HOSTNAME
+          valueFrom:
+            secretKeyRef:
+              name: bookinfo-service-credentials
+              key: REVIEWS_HOSTNAME
         ports:
         - containerPort: 9080
         volumeMounts:
@@ -308,5 +321,5 @@ spec:
           mountPath: /tmp
       volumes:
       - name: tmp
-        emptyDir: {}
----
+        persistentVolumeClaim:
+          claimName: productpage-workspace

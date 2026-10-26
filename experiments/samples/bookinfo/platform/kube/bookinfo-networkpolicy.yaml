@@ -1,0 +1,23 @@
+# NetworkPolicy -> Pod: selects Reviews Pods and allows the normal Productpage
+# -> Reviews call on port 9080. Any other source Pod is denied.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: reviews-from-productpage
+  labels:
+    app: reviews
+spec:
+  podSelector:
+    matchLabels:
+      app: reviews
+      version: v3
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: productpage
+    ports:
+    - protocol: TCP
+      port: 9080
