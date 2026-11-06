@@ -1,0 +1,11 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: case-networkpolicy-pod-normal
+spec:
+  podSelector:
+    matchLabels:
+      app: details
+      version: v1
+  policyTypes:
+  - Ingress

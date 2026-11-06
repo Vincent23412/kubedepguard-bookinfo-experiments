@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: case-ingress-service-conflict
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /case-ingress-conflict
+        pathType: Exact
+        backend:
+          service:
+            name: productpage-conflict
+            port:
+              number: 9080

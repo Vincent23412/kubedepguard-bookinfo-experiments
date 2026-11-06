@@ -1,0 +1,11 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: case-networkpolicy-pod-conflict
+spec:
+  podSelector:
+    matchLabels:
+      app: details-conflict
+      version: v1
+  policyTypes:
+  - Ingress

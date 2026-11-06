@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: case-ingress-service-normal
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /case-ingress-normal
+        pathType: Exact
+        backend:
+          service:
+            name: productpage
+            port:
+              number: 9080

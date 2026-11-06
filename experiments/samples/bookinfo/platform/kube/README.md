@@ -1,17 +1,44 @@
-# Bookinfo on Kubernetes with Ingress
+# Kubernetes Bookinfo experiment
 
 This experiment exposes Bookinfo through one standard Kubernetes `Ingress`.
 The application and MongoDB Services stay internal (`ClusterIP`); do not create a
 NodePort, LoadBalancer, Istio Gateway, Gateway API route, or external Service
 for them.
 
-## Prerequisite
+## Directory guide
+
+| Path | Purpose |
+| --- | --- |
+| `kustomization.yaml` and `bookinfo-*.yaml` | The declared Bookinfo baseline, applied together. |
+| `dependency-break-tests.sh` | Manually break one relationship, inspect it, then restore. |
+| [`mode-profiles/`](mode-profiles/README.md) | Ordered Bookinfo deployment profiles for `enforce` and `warn`. |
+| [`dependency-cases/`](dependency-cases/README.md) | 24 single-command cases against the real `bookinfo` namespace; the runner restores Bookinfo after every case. |
+| [`mode-cases/`](mode-cases/README.md) | 24 isolated `enforce`/`warn` assertions; each case uses and removes its own temporary namespace. |
+
+## Prerequisites
 
 Install an NGINX Ingress controller and ensure it is registered as the `nginx`
 IngressClass. A default StorageClass is also required for the `mongodb-data`
 PersistentVolumeClaim.
 
 ## Deploy
+
+From the repository root, the standard workflow is:
+
+```sh
+make deploy
+make status
+```
+
+`make deploy` creates the namespace if needed, applies this Kustomization,
+waits for the workloads, and runs an in-cluster Productpage smoke test. Open
+`http://localhost/productpage` when using the configured kind cluster.
+
+To apply this directory directly to another configured cluster, run:
+
+```sh
+kubectl --namespace bookinfo apply -k .
+```
 
 If a previous version of this experiment created an Ingress named `gateway`,
 remove that obsolete resource first:
@@ -28,13 +55,9 @@ installation:
 kubectl delete deployment ratings-v1 reviews-v1 reviews-v2 --ignore-not-found
 ```
 
-```sh
-kubectl apply -k .
-```
-
-Open `http://<ingress-address>/productpage`. The Ingress also routes the
-application's `/static/`, `/login`, `/logout`, and `/api/v1/products` paths to
-the `productpage` Service on port 9080.
+Open `http://<ingress-address>/productpage`.
+The Ingress also routes the application's `/static/`, `/login`, `/logout`, and
+`/api/v1/products` paths to the `productpage` Service on port 9080.
 
 `reviews-v3` calls `ratings-v2`, which reads the seeded ratings from MongoDB.
 MongoDB persists data through the `mongodb-data` PersistentVolumeClaim.
@@ -74,9 +97,20 @@ hostnames, Reviews' Ratings endpoint, and the Ratings MongoDB connection.
 port 9080 and denies other source Pods. The Reviews `wlp-output` volume remains
 an `emptyDir`; it is Pod-local scratch space, not a PersistentVolume or PVC.
 
-## Dependency break experiments
+## Dependency experiments
 
-Use `dependency-break-tests.sh` to intentionally sever one relationship, view
-the resulting Kubernetes or application failure, then restore the declared
-Bookinfo state. The script reapplies `kustomization.yaml`, requires an explicit
-relation and namespace, and documents its options with `--help`.
+| Goal | Command | Scope |
+| --- | --- | --- |
+| Explore one relationship interactively | `./dependency-break-tests.sh --namespace bookinfo break <relation>` | Changes Bookinfo until `restore` is run. |
+| Restore after a manual break | `./dependency-break-tests.sh --namespace bookinfo restore` | Reapplies this Kustomization. |
+| Run the dependency command matrix | `./dependency-cases/run-cases.sh` | Restores Bookinfo after every case. |
+| Run the matrix with enforcement | `./dependency-cases/run-cases.sh --mode enforce` | Deploys the ordered enforce profile and treats expected rejections as success. |
+| Run the matrix with warnings | `./dependency-cases/run-cases.sh --mode warn` | Deploys the warn profile and requires Warning Events for conflict cases. |
+| Assert annotation modes | `./mode-cases/run-mode-cases.sh` | Uses a fresh temporary namespace per case. |
+
+`dependency-break-tests.sh` supports `configmap`, `secret`, `pvc`, `ingress`,
+`service`, and `networkpolicy`; use `--help` for the expected application or
+Kubernetes failure in each case.
+
+The `dependency-cases` and `mode-cases` directories keep per-run stdout/stderr
+logs and a `summary.tsv` in their ignored `runs/` directories.
